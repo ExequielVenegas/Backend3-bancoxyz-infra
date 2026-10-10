@@ -1,5 +1,5 @@
-# Código fuente Banco XYZ
+# Entrega Banco XYZ
 
-Enlace GitHub: **pendiente de incorporar por el estudiante después de publicar el código**.
+Informe técnico, instrucciones de ejecución, despliegue y guion de presentación de la EFT.
 
-La solución incluye los módulos de dominio, los tres BFF, autorización, configuración y descubrimiento, batch, proxy y despliegue Kafka. Su descripción y flujo completo se encuentran en los README de cada componente y de la raíz.
+Enlace al código en GitHub: pendiente de agregar después de publicarlo.

@@ -123,7 +123,19 @@ En una base EFT nueva, cargar una vez los CSV con las mismas columnas:
 ./scripts/Get-EftBatchReport.ps1 -Period 2026-10
 ```
 
-Se puede proporcionar `-InputFile` para un CSV alternativo. No limpiar tablas del entorno en uso para una toma. La selección sintética debe generarse y revisarse mediante los scripts de asociación documentados en `../ASOCIACION_LEGACY.md`; no basta con ejecutar el batch para que existan las cuentas modernas. La cuenta 137 de las pruebas históricas requiere la carga histórica S8 correspondiente.
+Se puede proporcionar `-InputFile` para un CSV alternativo. No limpiar tablas del entorno en uso para una toma. La cuenta 137 de las pruebas históricas requiere la carga histórica S8 correspondiente.
+
+En una instalación nueva, preparar las cuentas sintéticas después de cargar el batch y levantar los servicios:
+
+```powershell
+./scripts/New-SyntheticLegacyAssociations.ps1 -Period 2026-10
+$demo = './secrets/legacy-associations/sintetica-2026-10.json'
+./scripts/Invoke-LegacyAssociations.ps1 -ReviewFile $demo
+./scripts/Invoke-LegacyAssociations.ps1 -ReviewFile $demo -Apply
+./scripts/Test-SyntheticLegacyAssociations.ps1 -ReviewFile $demo
+```
+
+La primera llamada a Invoke-LegacyAssociations solo valida; `-Apply` crea las asociaciones y cuentas bloqueadas. Se utiliza el saldo original de la primera fila de ahorro calculable por ID, sin sumar intereses ni movimientos históricos. Los titulares se identifican como sintéticos y no representan una conciliación de identidades reales. La comprobación final genera el archivo de cuentas que utiliza Invoke-EftDemo. Ejecutarla antes de la primera demostración: después de realizar pagos, comprobar el estado con `Invoke-EftDemo.ps1 -Paso Resumen`, sin restaurar los saldos iniciales.
 
 ## Accesos
 
