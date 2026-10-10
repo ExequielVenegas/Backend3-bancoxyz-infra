@@ -1,0 +1,12 @@
+[
+  {"directory":"account-service","url":"https://github.com/ExequielVenegas/Backend3-account-service.git"},
+  {"directory":"auth-server","url":"https://github.com/ExequielVenegas/Backend3-auth-server.git"},
+  {"directory":"bff-web","url":"https://github.com/ExequielVenegas/Backend3-bff-web.git"},
+  {"directory":"platform-service","url":"https://github.com/ExequielVenegas/Backend3-platform-service.git"},
+  {"directory":"config-repo","url":"https://github.com/ExequielVenegas/Backend3-config-repo.git"},
+  {"directory":"legacy-batch-migrator","url":"https://github.com/ExequielVenegas/Backend3-batch-migrator.git"},
+  {"directory":"bff-mobile","url":null},
+  {"directory":"bff-atm","url":null},
+  {"directory":"customer-service","url":null},
+  {"directory":"payment-service","url":null}
+]

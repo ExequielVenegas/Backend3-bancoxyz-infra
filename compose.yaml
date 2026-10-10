@@ -1,0 +1,190 @@
+name: bancoxyz-local
+services:
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    profiles: [tools]
+    networks: [kafka-tools]
+    ports:
+      - "127.0.0.1:8084:8080"
+    environment:
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/secrets/ui-config.yml
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-100.29.239.217:9093}
+      DYNAMIC_CONFIG_ENABLED: "false"
+    volumes:
+      - type: bind
+        source: ./secrets/kafka/ui-config.yml
+        target: /secrets/ui-config.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./secrets/kafka/broker.crt:/secrets/broker.crt:ro
+    restart: unless-stopped
+  https-proxy:
+    image: nginx:1.30.5-alpine
+    networks: [frontend]
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./secrets/tls:/etc/nginx/tls:ro
+    ports:
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:8082:8082"
+      - "127.0.0.1:8083:8083"
+      - "127.0.0.1:9000:9000"
+    depends_on:
+      bff-web:
+        condition: service_started
+      auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+  auth-server:
+    build: ./auth-server
+    networks: [frontend, backend]
+    environment:
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_WEB_CLIENT_SECRET: ${AUTH_WEB_CLIENT_SECRET:?Ejecuta Initialize-LocalSecurity.ps1}
+      AUTH_MOBILE_CLIENT_SECRET: ${AUTH_MOBILE_CLIENT_SECRET:?Ejecuta Initialize-ChannelSecurity.ps1}
+      AUTH_ATM_CLIENT_SECRET: ${AUTH_ATM_CLIENT_SECRET:?Ejecuta Initialize-ChannelSecurity.ps1}
+      AUTH_KEYSTORE_PASSWORD: ${AUTH_KEYSTORE_PASSWORD:?Ejecuta Initialize-LocalSecurity.ps1}
+      AUTH_SIGNING_KEY_STORE: file:/secrets/auth-signing.p12
+    volumes:
+      - ./secrets/auth-signing.p12:/secrets/auth-signing.p12:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+  platform-service:
+    build: ./platform-service
+    networks: [backend]
+    environment:
+      CONFIG_REPO_LOCATION: file:/config/
+    volumes:
+      - ./config-repo:/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+  customer-service:
+    build: ./customer-service
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: cloud
+      CONFIG_SERVER_URL: http://platform-service:8761
+      EUREKA_URL: http://platform-service:8761/eureka/
+      CUSTOMER_DB_URL: ${CUSTOMER_DB_URL:-jdbc:mysql://host.docker.internal:3306/bancoxyz_customers}
+      CUSTOMER_DB_USERNAME: ${CUSTOMER_DB_USERNAME:?Ejecuta Initialize-CustomerDatabase.ps1}
+      CUSTOMER_DB_PASSWORD: ${CUSTOMER_DB_PASSWORD:?Ejecuta Initialize-CustomerDatabase.ps1}
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_JWK_SET_URI: http://auth-server:9000/oauth2/jwks
+    depends_on:
+      platform-service:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+  account-service:
+    build: ./account-service
+    volumes:
+      - ./secrets/kafka/account.properties:/secrets/client.properties:ro
+      - ./secrets/kafka/broker.crt:/secrets/broker.crt:ro
+    networks: [backend]
+    environment:
+      LAB_KAFKA_ENABLED: "true"
+      LAB_KAFKA_CLIENT_PROPERTIES: /secrets/client.properties
+      LAB_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-100.29.239.217:9093}
+      SPRING_PROFILES_ACTIVE: cloud
+      CONFIG_SERVER_URL: http://platform-service:8761
+      EUREKA_URL: http://platform-service:8761/eureka/
+      SERVER_PORT: "8090"
+      ACCOUNT_DB_URL: ${ACCOUNT_DB_URL:-jdbc:mysql://host.docker.internal:3306/lab_batch}
+      ACCOUNT_DB_USERNAME: ${ACCOUNT_DB_USERNAME:?Define ACCOUNT_DB_USERNAME}
+      ACCOUNT_DB_PASSWORD: ${ACCOUNT_DB_PASSWORD:?Define ACCOUNT_DB_PASSWORD}
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_JWK_SET_URI: http://auth-server:9000/oauth2/jwks
+    depends_on:
+      platform-service:
+        condition: service_healthy
+    restart: unless-stopped
+  payment-service:
+    build: ./payment-service
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: cloud
+      CONFIG_SERVER_URL: http://platform-service:8761
+      EUREKA_URL: http://platform-service:8761/eureka/
+      PAYMENT_DB_URL: ${PAYMENT_DB_URL:-jdbc:mysql://host.docker.internal:3306/bancoxyz_payments}
+      PAYMENT_DB_USERNAME: ${PAYMENT_DB_USERNAME:?Ejecuta Initialize-PaymentDatabase.ps1}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?Ejecuta Initialize-PaymentDatabase.ps1}
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_JWK_SET_URI: http://auth-server:9000/oauth2/jwks
+    depends_on:
+      platform-service:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+  bff-web:
+    build: ./bff-web
+    volumes:
+      - ./secrets/kafka/web.properties:/secrets/client.properties:ro
+      - ./secrets/kafka/broker.crt:/secrets/broker.crt:ro
+    networks: [frontend, backend]
+    environment:
+      LAB_KAFKA_ENABLED: "true"
+      LAB_KAFKA_CLIENT_PROPERTIES: /secrets/client.properties
+      LAB_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-100.29.239.217:9093}
+      SPRING_PROFILES_ACTIVE: cloud
+      CONFIG_SERVER_URL: http://platform-service:8761
+      EUREKA_URL: http://platform-service:8761/eureka/
+      SERVER_PORT: "8081"
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_JWK_SET_URI: http://auth-server:9000/oauth2/jwks
+    depends_on:
+      platform-service:
+        condition: service_healthy
+      account-service:
+        condition: service_started
+      auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  bff-mobile:
+    build: ./bff-mobile
+    networks: [frontend, backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: cloud
+      CONFIG_SERVER_URL: http://platform-service:8761
+      EUREKA_URL: http://platform-service:8761/eureka/
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_JWK_SET_URI: http://auth-server:9000/oauth2/jwks
+    depends_on:
+      platform-service:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+  bff-atm:
+    build: ./bff-atm
+    networks: [frontend, backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: cloud
+      CONFIG_SERVER_URL: http://platform-service:8761
+      EUREKA_URL: http://platform-service:8761/eureka/
+      AUTH_ISSUER: https://localhost:9000
+      AUTH_JWK_SET_URI: http://auth-server:9000/oauth2/jwks
+    depends_on:
+      platform-service:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  kafka-tools:
+  frontend:
+  backend:

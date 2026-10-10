@@ -1,0 +1,21 @@
+# Activar despues de preparar topicos/ACL y secrets/kafka/payment.properties en AWS.
+# docker compose -f compose.yaml -f compose.payments-kafka.yaml up -d
+services:
+  account-service:
+    environment:
+      PAYMENTS_KAFKA_ENABLED: "true"
+      PAYMENTS_KAFKA_CLIENT_PROPERTIES: /secrets/client.properties
+      PAYMENTS_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-100.29.239.217:9093}
+  payment-service:
+    environment:
+      PAYMENTS_KAFKA_ENABLED: "true"
+      PAYMENTS_KAFKA_CLIENT_PROPERTIES: /secrets/client.properties
+      PAYMENTS_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-100.29.239.217:9093}
+    volumes:
+      - type: bind
+        source: ./secrets/kafka/payment.properties
+        target: /secrets/client.properties
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./secrets/kafka/broker.crt:/secrets/broker.crt:ro

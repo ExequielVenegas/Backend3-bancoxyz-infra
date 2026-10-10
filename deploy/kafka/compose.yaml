@@ -1,0 +1,34 @@
+name: bancoxyz-kafka
+services:
+  kafka:
+    image: apache/kafka:4.1.2
+    hostname: kafka
+    environment:
+      CLUSTER_ID: ${CLUSTER_ID:?Ejecutar prepare.sh}
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx1g"
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-storage.sh format --ignore-formatted -t "$$CLUSTER_ID" -c /secrets/server.properties
+        exec /opt/kafka/bin/kafka-server-start.sh /secrets/server.properties
+    ports:
+      - "9093:9093"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "127.0.0.1:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  kafka-data:
+    external: true
+    name: bancoxyz-kafka-data
